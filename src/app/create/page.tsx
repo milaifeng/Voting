@@ -1,32 +1,40 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { useAccount } from "wagmi";
-import { Plus, Trash2, Clock, Users } from "lucide-react";
+import {
+  useAccount,
+  useWaitForTransactionReceipt,
+  useWriteContract,
+} from "wagmi";
+import { Plus, Trash2, Clock, Users, CheckCircle } from "lucide-react";
+import { Interface } from "ethers";
 import { format } from "date-fns";
+import votingABI from "@/contract/Voting.json";
+import votingADD from "@/contract/deployment-info.json";
 
-// 模拟存储：使用 localStorage 持久化
-const STORAGE_KEY = "mock_polls";
-
+const CONTRACT_ADDRESS = votingADD.contract as `0x${string}`;
+const ABI = votingABI.abi;
 interface Option {
   id: string;
   text: string;
 }
 
-interface MockPoll {
-  id: string;
-  title: string;
-  description: string;
-  options: string[];
-  deadline: number; // timestamp
-  creator: string;
-  totalVotes: number;
-}
-
 export default function CreatePollPage() {
   const { address, isConnected } = useAccount();
   const router = useRouter();
+
+  const {
+    writeContract,
+    data: hash,
+    isPending: writePending,
+    error: writeError,
+  } = useWriteContract();
+  const {
+    isLoading: txLoading,
+    isSuccess: txSuccess,
+    data: receipt,
+  } = useWaitForTransactionReceipt({ hash });
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -37,14 +45,41 @@ export default function CreatePollPage() {
   const [durationDays, setDurationDays] = useState("7"); // 默认 7 天
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [optionIdCounter, setOptionIdCounter] = useState(3);
+  const hasNavigatedRef = useRef(false);
+  useEffect(() => {
+    if (!txSuccess || !receipt || hasNavigatedRef.current) return;
 
+    try {
+      const iface = new Interface(ABI);
+      for (const log of receipt.logs) {
+        try {
+          const parsed = iface.parseLog(log);
+          if (parsed?.name === "PollCreated") {
+            const id = parsed.args.id.toString();
+            hasNavigatedRef.current = true; // 标记已处理
+
+            // 异步跳转，避免同步 state 更新
+            setTimeout(() => {
+              router.push(`/polls/${id}`);
+            }, 2000);
+            return;
+          }
+        } catch {}
+      }
+    } catch (e) {
+      console.error("事件解析失败", e);
+    }
+  }, [txSuccess, receipt, router]);
   // 添加选项
   const addOption = () => {
     if (options.length >= 10) {
       setError("最多支持 10 个选项");
       return;
     }
-    setOptions([...options, { id: Date.now().toString(), text: "" }]);
+    const newId = optionIdCounter.toString();
+    setOptionIdCounter((prev) => prev + 1);
+    setOptions((prev) => [...prev, { id: newId, text: "" }]);
   };
 
   // 删除选项
@@ -53,12 +88,14 @@ export default function CreatePollPage() {
       setError("至少需要 2 个选项");
       return;
     }
-    setOptions(options.filter((opt) => opt.id !== id));
+    setOptions((prev) => prev.filter((opt) => opt.id !== id));
   };
 
   // 更新选项文本
   const updateOption = (id: string, text: string) => {
-    setOptions(options.map((opt) => (opt.id === id ? { ...opt, text } : opt)));
+    setOptions((prev) =>
+      prev.map((opt) => (opt.id === id ? { ...opt, text } : opt))
+    );
   };
 
   // 表单验证
@@ -72,13 +109,12 @@ export default function CreatePollPage() {
     return null;
   };
 
-  // 模拟创建投票（存储到 localStorage）
+  // 创建投票
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    setIsSubmitting(true);
 
-    if (!isConnected) {
+    if (!isConnected || !address) {
       setError("请先连接钱包");
       setIsSubmitting(false);
       return;
@@ -87,48 +123,37 @@ export default function CreatePollPage() {
     const validationError = validate();
     if (validationError) {
       setError(validationError);
-      setIsSubmitting(false);
       return;
     }
+    const validOptions = options.map((opt) => opt.text.trim()).filter(Boolean);
+    const durationMinutes = parseInt(durationDays) * 24 * 60;
+    console.log("validOptions", validOptions);
+    console.log("durationMinutes", durationMinutes);
 
     try {
-      // 模拟 Gas 等待
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
-      const deadline =
-        Date.now() + parseInt(durationDays) * 24 * 60 * 60 * 1000;
-      const newPoll: MockPoll = {
-        id: Date.now().toString(),
-        title: title.trim(),
-        description: description.trim(),
-        options: options.map((opt) => opt.text.trim()).filter(Boolean),
-        deadline,
-        creator: address!,
-        totalVotes: 0,
-      };
-
-      // 读取现有数据
-      const existing = localStorage.getItem(STORAGE_KEY);
-      const polls = existing ? JSON.parse(existing) : [];
-      polls.unshift(newPoll); // 新投票置顶
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(polls));
-
-      // 成功后跳转到详情页（模拟）
-      router.push(`/polls/${newPoll.id}`);
-    } catch (error) {
-      setError(`创建失败，请重试 ${error}`);
-    } finally {
-      setIsSubmitting(false);
+      writeContract({
+        address: CONTRACT_ADDRESS,
+        abi: ABI,
+        functionName: "createPoll",
+        args: [title, description, validOptions, BigInt(durationMinutes)],
+      });
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message || "交易拒绝或失败");
+      } else {
+        setError(String(err) || "交易拒绝或失败");
+      }
     }
   };
-
   // 计算截止时间预览
-  const previewDeadline = () => {
+  const previewDeadline = useMemo(() => {
     if (!durationDays) return "";
-    const days = parseInt(durationDays);
-    const date = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
-    return format(date, "yyyy年MM月dd日 HH:mm");
-  };
+    const days = parseInt(durationDays) || 0;
+    if (days <= 0) return "无效时长";
+    const now = new Date().getTime();
+    const date = now + days * 24 * 60 * 60 * 1000;
+    return format(new Date(date), "yyyy年MM月dd日 HH:mm");
+  }, [durationDays]);
 
   return (
     <div className="w-full py-8 bg-gray-50 px-4">
@@ -139,8 +164,21 @@ export default function CreatePollPage() {
             创建新投票
           </h1>
           <p className="text-gray-600 dark:text-gray-300">
-            填写信息，发布去中心化投票。数据存储在区块链的合约中。
+            填写信息，发布去中心化投票。数据永久存储在以太坊 Sepolia 测试网。
           </p>
+          <div className="mt-4 bg-linear-to-r from-blue-500 to-purple-600 text-white rounded-lg p-4 shadow-lg">
+            <p className="text-sm font-mono">合约: {CONTRACT_ADDRESS}</p>
+            <p className="text-xs mt-1">
+              <a
+                href="https://sepolia.etherscan.io/address/0x9b361B1f1Caf68A7517928C3450e2EF1dEEBc05b"
+                target="_blank"
+                rel="noreferrer"
+                className="underline"
+              >
+                etherscan 查看（已验证）
+              </a>
+            </p>
+          </div>
         </div>
         {/* 表单卡片 */}
         <form
@@ -249,7 +287,7 @@ export default function CreatePollPage() {
             </div>
             <div className="mt-3 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
               <Clock className="w-4 h-4" />
-              <span>截止时间预览：{previewDeadline()}</span>
+              <span>截止时间预览：{previewDeadline}</span>
             </div>
           </div>
 
@@ -266,9 +304,38 @@ export default function CreatePollPage() {
           </div>
 
           {/* 错误提示 */}
-          {error && (
+          {(error || writeError) && (
             <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-300">
-              {error}
+              {error || writeError?.message}
+            </div>
+          )}
+          {writePending && (
+            <div className="mb-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg text-yellow-700 dark:text-yellow-300">
+              等待钱包确认...
+            </div>
+          )}
+          {txLoading && hash && (
+            <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-blue-700 dark:text-blue-300">
+              <div className="flex items-center gap-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent" />
+                交易打包中...
+                <a
+                  href={`https://sepolia.etherscan.io/tx/${hash}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline"
+                >
+                  查看
+                </a>
+              </div>
+            </div>
+          )}
+          {txSuccess && (
+            <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-green-700 dark:text-green-300">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-5 h-5" />
+                创建成功！2 秒后跳转详情...
+              </div>
             </div>
           )}
 
@@ -276,35 +343,18 @@ export default function CreatePollPage() {
           <div className="flex gap-4">
             <button
               type="submit"
-              disabled={isSubmitting || !isConnected}
+              disabled={writePending || txLoading || !isConnected}
               className={`flex-1 py-4 px-6 rounded-lg font-semibold transition ${
                 isSubmitting || !isConnected
                   ? "bg-gray-300 dark:bg-gray-600 text-gray-500 cursor-not-allowed"
                   : "bg-blue-600 text-white hover:bg-blue-700 shadow-lg"
               }`}
             >
-              {isSubmitting ? (
-                <span className="flex items-center justify-center gap-2">
-                  <svg className="animate-spin w-5 h-5" viewBox="0 0 24 24">
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    />
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    />
-                  </svg>
-                  创建中...
-                </span>
-              ) : (
-                "发布投票"
-              )}
+              {writePending
+                ? "等待确认..."
+                : txLoading
+                ? "链上处理中..."
+                : "发布投票"}
             </button>
             <button
               type="button"

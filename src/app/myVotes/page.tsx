@@ -1,97 +1,100 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
-import { useAccount } from "wagmi";
-import { formatDistanceToNow } from "date-fns";
-import { Plus, Clock, BarChart3, Edit3, Trash2, Eye } from "lucide-react";
+import {
+  useAccount,
+  useContractRead,
+  useContractWrite,
+  useWaitForTransactionReceipt,
+} from "wagmi";
+import { formatDistanceToNow, isPast } from "date-fns";
+import { zhCN } from "date-fns/locale";
+import { Plus, Clock, BarChart3, Trash2, Eye, AlertCircle } from "lucide-react";
+import votingABI from "@/contract/Voting.json";
+import votingADD from "@/contract/deployment-info.json";
 
-const STORAGE_KEY = "mock_polls";
-
+const CONTRACT_ADDRESS = votingADD.contract as `0x${string}`;
+const ABI = votingABI.abi;
 interface Poll {
-  id: string;
+  id: bigint;
+  creator: string;
   title: string;
   description: string;
   options: string[];
-  deadline: number;
-  creator: string;
-  totalVotes: number;
+  deadline: bigint;
+  totalVotes: bigint;
+  active: boolean;
 }
 
 export default function MyPollsPage() {
   const { address, isConnected } = useAccount();
-  const [myPolls, setMyPolls] = useState<Poll[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<bigint | null>(null);
+  const [error, setError] = useState("");
 
-  // 加载用户创建的投票
-  useEffect(() => {
-    if (!isConnected || !address) {
-      setLoading(false);
-      return;
-    }
+  // 1. 读取所有投票
+  const { data: polls, isLoading } = useContractRead({
+    address: CONTRACT_ADDRESS,
+    abi: ABI,
+    functionName: "getAllPolls",
+  }) as { data: Poll[] | undefined; isLoading: boolean };
+
+  // 2. 结束投票
+  const {
+    writeContract,
+    data: hash,
+    isPending: endingPending,
+  } = useContractWrite();
+  const { isLoading: txLoading, isSuccess: txSuccess } =
+    useWaitForTransactionReceipt({ hash });
+
+  // 3. 过滤当前用户创建的投票
+  const myPolls = useMemo(() => {
+    if (!polls || !address) return [];
+    return polls.filter(
+      (p) => p.creator.toLowerCase() === address.toLowerCase()
+    );
+  }, [polls, address]);
+
+  const handleEndPoll = async (pollId: bigint) => {
+    if (!confirm("确定结束此投票？结束后的投票无法再投票！")) return;
+
+    setDeletingId(pollId);
+    setError("");
 
     try {
-      const polls: Poll[] = JSON.parse(
-        localStorage.getItem(STORAGE_KEY) || "[]"
-      );
-      const userPolls = polls.filter(
-        (p: Poll) => p.creator.toLowerCase() === address.toLowerCase()
-      );
-      setMyPolls(userPolls);
+      writeContract({
+        address: CONTRACT_ADDRESS,
+        abi: ABI,
+        functionName: "endPoll",
+        args: [pollId],
+      });
     } catch (err) {
-      console.error("加载失败", err);
-    } finally {
-      setLoading(false);
-    }
-  }, [address, isConnected]);
-
-  // 删除投票（模拟）
-  const handleDelete = async (id: string) => {
-    if (!confirm("确定删除此投票？操作不可逆！")) return;
-
-    setDeletingId(id);
-    try {
-      // 模拟延迟
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      const polls: Poll[] = JSON.parse(
-        localStorage.getItem(STORAGE_KEY) || "[]"
-      );
-      const updated = polls.filter((p: Poll) => p.id !== id);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-
-      // 删除相关票数
-      const votes = JSON.parse(localStorage.getItem("mock_votes") || "{}");
-      delete votes[id];
-      localStorage.setItem("mock_votes", JSON.stringify(votes));
-
-      // 删除用户投票记录
-      const userVotes = JSON.parse(localStorage.getItem("user_votes") || "{}");
-      delete userVotes[id];
-      localStorage.setItem("user_votes", JSON.stringify(userVotes));
-
-      setMyPolls(myPolls.filter((p) => p.id !== id));
-    } catch (err) {
-      alert("删除失败，请重试");
-    } finally {
-      setDeletingId(null);
+      setError(`结束失败 ${err}`);
     }
   };
 
+  // 成功后重置
+  if (txSuccess) {
+    setDeletingId(null);
+  }
+
   if (!isConnected) {
     return (
-      <div className="w-full bg-gray-50 flex items-center justify-center">
+      <div className="w-full min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
         <div className="text-center">
-          <p className="text-xl text-gray-600">请连接钱包查看你的提案</p>
+          <AlertCircle className="w-12 h-12 text-yellow-600 mx-auto mb-4" />
+          <p className="text-xl text-gray-600 dark:text-gray-300">
+            请连接钱包查看你的提案
+          </p>
         </div>
       </div>
     );
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen w-full bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <div className="animate-pulse text-gray-500">加载你的提案...</div>
       </div>
     );
@@ -101,14 +104,16 @@ export default function MyPollsPage() {
     <div className="w-full bg-gray-50 dark:bg-gray-900 py-8 px-4">
       <div className="max-w-6xl mx-auto">
         {/* 标题 + 创建按钮 */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
           <div>
             <h1 className="text-4xl font-bold text-gray-900 dark:text-white">
               我的提案
             </h1>
             <p className="text-gray-600 dark:text-gray-300 mt-2">
-              管理你创建的投票。当前地址：{address?.slice(0, 6)}...
-              {address?.slice(-4)}
+              管理你创建的投票。当前地址：
+              <span className="font-mono text-sm ml-1">
+                {address?.slice(0, 6)}...{address?.slice(-4)}
+              </span>
             </p>
           </div>
           <Link
@@ -119,9 +124,29 @@ export default function MyPollsPage() {
           </Link>
         </div>
 
+        {/* 错误提示 */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-300">
+            {error}
+          </div>
+        )}
+
         {/* 列表 */}
         {myPolls.length === 0 ? (
-          <div className="text-center py-16 bg-white dark:bg-gray-800 rounded-xl shadow-lg">
+          <div className="text-center text-blue-600 py-16 bg-white dark:bg-gray-800 rounded-xl shadow-lg">
+            <svg
+              className="w-24 h-24 mx-auto mb-6 animate-bounce"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 5l7 7-7 7"
+              />
+            </svg>
             <p className="text-xl text-gray-500 dark:text-gray-400 mb-4">
               你还没有创建任何提案
             </p>
@@ -129,20 +154,24 @@ export default function MyPollsPage() {
               href="/create"
               className="text-blue-600 hover:underline font-medium"
             >
-              立即创建第一个提案 →
+              立即创建第一个提案
             </Link>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {myPolls.map((poll) => {
-              const isEnded = Date.now() > poll.deadline;
-              const timeLeft = formatDistanceToNow(poll.deadline, {
+              const deadlineMs = Number(poll.deadline) * 1000;
+              const isEnded = isPast(deadlineMs) || !poll.active;
+              const timeLeft = formatDistanceToNow(deadlineMs, {
                 addSuffix: true,
+                locale: zhCN,
               });
+
+              const isDeleting = deletingId === poll.id;
 
               return (
                 <div
-                  key={poll.id}
+                  key={poll.id.toString()}
                   className="bg-white dark:bg-gray-800 rounded-xl shadow-lg hover:shadow-2xl transition p-6"
                 >
                   <div className="flex items-start justify-between mb-4">
@@ -167,10 +196,11 @@ export default function MyPollsPage() {
                   {/* 统计 */}
                   <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400 mb-4">
                     <span className="flex items-center gap-1">
-                      <BarChart3 className="w-4 h-4" /> {poll.totalVotes} 票
+                      <BarChart3 className="w-4 h-4" />
+                      {poll.totalVotes.toString()} 票
                     </span>
                     <span className="flex items-center gap-1">
-                      <Clock className="w-4 h-4" />{" "}
+                      <Clock className="w-4 h-4" />
                       {isEnded ? "已结束" : timeLeft}
                     </span>
                   </div>
@@ -178,51 +208,45 @@ export default function MyPollsPage() {
                   {/* 操作按钮 */}
                   <div className="flex items-center gap-3">
                     <Link
-                      href={`/polls/${poll.id}`}
-                      className="flex-1 flex items-center justify-center gap-2 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition"
+                      href={`/polls/${poll.id.toString()}`}
+                      className="flex-1 flex items-center justify-center gap-2 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition text-sm font-medium"
                     >
                       <Eye className="w-4 h-4" /> 查看
                     </Link>
                     {!isEnded && (
-                      <Link
-                        href={`/edit/${poll.id}`} // 后续实现编辑页
-                        className="flex-1 flex items-center justify-center gap-2 bg-gray-600 text-white py-2 rounded-lg hover:bg-gray-700 transition"
+                      <button
+                        onClick={() => handleEndPoll(poll.id)}
+                        disabled={isDeleting || endingPending || txLoading}
+                        className={`px-4 py-2 rounded-lg transition flex items-center justify-center ${
+                          isDeleting || endingPending || txLoading
+                            ? "bg-gray-400 text-white cursor-not-allowed"
+                            : "bg-red-600 text-white hover:bg-red-700"
+                        }`}
                       >
-                        <Edit3 className="w-4 h-4" /> 编辑
-                      </Link>
+                        {isDeleting || endingPending || txLoading ? (
+                          <svg
+                            className="animate-spin w-5 h-5"
+                            viewBox="0 0 24 24"
+                          >
+                            <circle
+                              className="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                            />
+                            <path
+                              className="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                            />
+                          </svg>
+                        ) : (
+                          <Trash2 className="w-4 h-4" />
+                        )}
+                      </button>
                     )}
-                    <button
-                      onClick={() => handleDelete(poll.id)}
-                      disabled={deletingId === poll.id}
-                      className={`px-4 py-2 rounded-lg transition ${
-                        deletingId === poll.id
-                          ? "bg-gray-400 text-white cursor-not-allowed"
-                          : "bg-red-600 text-white hover:bg-red-700"
-                      }`}
-                    >
-                      {deletingId === poll.id ? (
-                        <svg
-                          className="animate-spin w-5 h-5"
-                          viewBox="0 0 24 24"
-                        >
-                          <circle
-                            className="opacity-25"
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="4"
-                          />
-                          <path
-                            className="opacity-75"
-                            fill="currentColor"
-                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                          />
-                        </svg>
-                      ) : (
-                        <Trash2 className="w-4 h-4" />
-                      )}
-                    </button>
                   </div>
                 </div>
               );

@@ -1,52 +1,98 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
-import { formatDistanceToNow } from "date-fns";
+import { useContractRead, useContractReads } from "wagmi";
+import { formatDistanceToNow, isPast } from "date-fns";
+import { zhCN } from "date-fns/locale";
 import { Plus, Clock, BarChart3, Search } from "lucide-react";
-const STORAGE_KEY = "mock_polls";
-
+import votingADD from "@/contract/deployment-info.json";
+const CONTRACT_ADDRESS = votingADD.contract as `0x${string}`;
+const ABI = [
+  {
+    inputs: [],
+    name: "getAllPolls",
+    outputs: [
+      {
+        components: [
+          { internalType: "uint256", name: "id", type: "uint256" },
+          { internalType: "address", name: "creator", type: "address" },
+          { internalType: "string", name: "title", type: "string" },
+          { internalType: "string", name: "description", type: "string" },
+          { internalType: "string[]", name: "options", type: "string[]" },
+          { internalType: "uint256", name: "deadline", type: "uint256" },
+          { internalType: "uint256", name: "totalVotes", type: "uint256" },
+          { internalType: "bool", name: "active", type: "bool" },
+        ],
+        internalType: "struct Voting.Poll[]",
+        name: "",
+        type: "tuple[]",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "_id", type: "uint256" }],
+    name: "getOptionVotes",
+    outputs: [{ internalType: "uint256[]", name: "", type: "uint256[]" }],
+    stateMutability: "view",
+    type: "function",
+  },
+] as const;
 interface Poll {
-  id: string;
+  id: bigint;
+  creator: string;
   title: string;
   description: string;
   options: string[];
-  deadline: number;
-  creator: string;
-  totalVotes: number;
+  deadline: bigint;
+  totalVotes: bigint;
+  active: boolean;
 }
 
 export default function PollsListPage() {
-  const [polls, setPolls] = useState<Poll[]>([]);
-  const [filteredPolls, setFilteredPolls] = useState<Poll[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterStatus, setFilterStatus] = useState("all"); // all, active, ended
-  const [sortBy, setSortBy] = useState("latest"); // latest, votes, ending
-  const [loading, setLoading] = useState(true);
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [sortBy, setSortBy] = useState("latest");
 
-  // 加载数据
-  useEffect(() => {
-    const loadPolls = () => {
-      try {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        const data = stored ? JSON.parse(stored) : [];
-        setPolls(data);
-        setFilteredPolls(data);
-      } catch (err) {
-        console.error("加载失败", err);
-      } finally {
-        setLoading(false);
-      }
-    };
+  // 1. 读取所有投票
+  const { data: polls, isLoading: loadingPolls } = useContractRead({
+    address: CONTRACT_ADDRESS,
+    abi: ABI,
+    functionName: "getAllPolls",
+  });
 
-    loadPolls();
-  }, []);
+  // 2. 批量读取每个投票的票数
+  const pollIds = polls ? (polls as Poll[]).map((p) => p.id) : [];
+  const { data: votesData } = useContractReads({
+    contracts: pollIds.map((id) => ({
+      address: CONTRACT_ADDRESS,
+      abi: ABI,
+      functionName: "getOptionVotes",
+      args: [id],
+    })),
+    query: {
+      enabled: pollIds.length > 0,
+    },
+  });
 
-  // 搜索 + 过滤 + 排序
-  useEffect(() => {
-    let filtered = [...polls];
+  // 3. 组合数据
+  const enrichedPolls = useMemo(() => {
+    if (!polls || !votesData) return [];
+    return (polls as Poll[]).map((poll, i) => ({
+      ...poll,
+      optionVotes: votesData[i].result || [],
+    }));
+  }, [polls, votesData]);
 
-    // 搜索标题/描述
+  // 4. 搜索 + 过滤 + 排序
+  const filteredPolls = useMemo(() => {
+    let filtered = [...enrichedPolls];
+
+    const now = new Date().getTime();
+
+    // 搜索
     if (searchTerm) {
       filtered = filtered.filter(
         (p) =>
@@ -55,29 +101,32 @@ export default function PollsListPage() {
       );
     }
 
-    // 状态过滤
-    const now = Date.now();
+    // 状态
     if (filterStatus === "active") {
-      filtered = filtered.filter((p) => p.deadline > now);
+      filtered = filtered.filter(
+        (p) => Number(p.deadline) * 1000 > now && p.active
+      );
     } else if (filterStatus === "ended") {
-      filtered = filtered.filter((p) => p.deadline <= now);
+      filtered = filtered.filter(
+        (p) => Number(p.deadline) * 1000 <= now || !p.active
+      );
     }
 
     // 排序
     if (sortBy === "latest") {
-      filtered.sort((a, b) => Number(b.id) - Number(a.id)); // id 是 timestamp
+      filtered.sort((a, b) => Number(b.id) - Number(a.id));
     } else if (sortBy === "votes") {
-      filtered.sort((a, b) => b.totalVotes - a.totalVotes);
+      filtered.sort((a, b) => Number(b.totalVotes) - Number(a.totalVotes));
     } else if (sortBy === "ending") {
-      filtered.sort((a, b) => a.deadline - b.deadline);
+      filtered.sort((a, b) => Number(a.deadline) - Number(b.deadline));
     }
 
-    setFilteredPolls(filtered);
-  }, [polls, searchTerm, filterStatus, sortBy]);
+    return filtered;
+  }, [enrichedPolls, searchTerm, filterStatus, sortBy]);
 
-  if (loading) {
+  if (loadingPolls) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen w-full bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <div className="animate-pulse text-gray-500">加载投票列表...</div>
       </div>
     );
@@ -102,7 +151,6 @@ export default function PollsListPage() {
         {/* 搜索 + 过滤 */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* 搜索 */}
             <div className="relative">
               <Search className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
               <input
@@ -114,7 +162,6 @@ export default function PollsListPage() {
               />
             </div>
 
-            {/* 状态过滤 */}
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
@@ -125,7 +172,6 @@ export default function PollsListPage() {
               <option value="ended">已结束</option>
             </select>
 
-            {/* 排序 */}
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
@@ -138,7 +184,7 @@ export default function PollsListPage() {
           </div>
         </div>
 
-        {/* 列表 */}
+        {/* 投票列表 */}
         {filteredPolls.length === 0 ? (
           <div className="text-center py-16">
             <p className="text-xl text-gray-500 dark:text-gray-400 mb-4">
@@ -150,31 +196,33 @@ export default function PollsListPage() {
               href="/create"
               className="text-blue-600 hover:underline font-medium"
             >
-              立即创建第一个投票 →
+              立即创建第一个投票
             </Link>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredPolls.map((poll) => {
-              const isEnded = Date.now() > poll.deadline;
-              const timeLeft = formatDistanceToNow(poll.deadline, {
+              const deadlineMs = Number(poll.deadline) * 1000;
+              const isEnded = isPast(deadlineMs) || !poll.active;
+              const timeLeft = formatDistanceToNow(deadlineMs, {
                 addSuffix: true,
+                locale: zhCN,
               });
+
+              // 计算领先进度
+              const maxVotes =
+                poll.optionVotes.length > 0
+                  ? Math.max(...poll.optionVotes.map((v) => Number(v)))
+                  : 0;
               const progress =
-                poll.options.length > 0
-                  ? (Math.max(
-                      ...(JSON.parse(
-                        localStorage.getItem("mock_votes") || "{}"
-                      )[poll.id] || [])
-                    ) /
-                      (poll.totalVotes || 1)) *
-                    100
+                poll.totalVotes > 0
+                  ? (maxVotes / Number(poll.totalVotes)) * 100
                   : 0;
 
               return (
                 <Link
-                  key={poll.id}
-                  href={`/polls/${poll.id}`}
+                  key={poll.id.toString()}
+                  href={`/polls/${poll.id.toString()}`}
                   className="block bg-white dark:bg-gray-800 rounded-xl shadow-lg hover:shadow-2xl transition transform hover:-translate-y-1"
                 >
                   <div className="p-6">
@@ -185,15 +233,15 @@ export default function PollsListPage() {
                       {poll.description}
                     </p>
 
-                    {/* 进度条（领先选项） */}
+                    {/* 领先进度条 */}
                     <div className="mb-4">
                       <div className="flex justify-between text-xs text-gray-500 mb-1">
-                        <span>领先进度</span>
+                        <span>领先选项</span>
                         <span>{Math.round(progress)}%</span>
                       </div>
                       <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                         <div
-                          className="bg-blue-600 h-2 rounded-full transition-all"
+                          className="bg-linear-to-r from-blue-500 to-blue-600 h-2 rounded-full transition-all"
                           style={{ width: `${progress}%` }}
                         />
                       </div>
@@ -202,10 +250,11 @@ export default function PollsListPage() {
                     {/* 元数据 */}
                     <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
                       <span className="flex items-center gap-1">
-                        <BarChart3 className="w-4 h-4" /> {poll.totalVotes} 票
+                        <BarChart3 className="w-4 h-4" />
+                        {poll.totalVotes.toString()} 票
                       </span>
                       <span className="flex items-center gap-1">
-                        <Clock className="w-4 h-4" />{" "}
+                        <Clock className="w-4 h-4" />
                         {isEnded ? "已结束" : timeLeft}
                       </span>
                     </div>

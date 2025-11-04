@@ -1,7 +1,14 @@
+// app/polls/[id]/page.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
+import {
+  useAccount,
+  useContractRead,
+  useContractWrite,
+  useWaitForTransactionReceipt,
+} from "wagmi";
 import {
   PieChart,
   Pie,
@@ -10,147 +17,162 @@ import {
   Legend,
   Tooltip,
 } from "recharts";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, isPast } from "date-fns";
+import { zhCN } from "date-fns/locale";
 import { ArrowLeft, Clock, User, BarChart3, CheckCircle } from "lucide-react";
+import votingABI from "@/contract/Voting.json";
+import votingADD from "@/contract/deployment-info.json";
 
-const STORAGE_KEY = "mock_polls";
-const VOTES_KEY = "mock_votes"; // 存储用户投票记录 { pollId: optionIndex }
-
-interface Option {
-  text: string;
-  votes: number;
-}
+const CONTRACT_ADDRESS = votingADD.contract as `0x${string}`;
+const ABI = votingABI.abi;
 
 interface Poll {
-  id: string;
+  id: bigint;
+  creator: string;
   title: string;
   description: string;
   options: string[];
-  deadline: number;
-  creator: string;
-  totalVotes: number;
-  userVotes?: number[]; // 模拟每个选项票数
+  deadline: bigint;
+  totalVotes: bigint;
+  active: boolean;
 }
 
 export default function PollDetailPage() {
   const { id } = useParams();
   const router = useRouter();
-  const [poll, setPoll] = useState<Poll | null>(null);
-  const [userVote, setUserVote] = useState<number | null>(null); // 用户已投选项索引
-  const [selectedOption, setSelectedOption] = useState<number | null>(null);
-  const [isVoting, setIsVoting] = useState(false);
-  const [error, setError] = useState("");
-  const [votes, setVotes] = useState<number[]>([]); // 实时票数
+  const { address, isConnected } = useAccount();
 
-  // 加载投票数据
-  useEffect(() => {
-    const polls = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-    const foundPoll = polls.find((p: Poll) => p.id === id);
-    if (!foundPoll) {
-      setError("投票不存在或已删除");
+  const pollId = BigInt(id as string);
+
+  // 1. 读取投票详情
+  const { data: pollData, isLoading: loadingPoll } = useContractRead({
+    address: CONTRACT_ADDRESS,
+    abi: ABI,
+    functionName: "getPoll",
+    args: [pollId],
+  });
+
+  // 2. 读取选项票数
+  const { data: votesDataRaw, isLoading: loadingVotes } = useContractRead({
+    address: CONTRACT_ADDRESS,
+    abi: ABI,
+    functionName: "getOptionVotes",
+    args: [pollId],
+  });
+  const votesData = votesDataRaw as readonly bigint[] | undefined;
+  // 3. 读取用户是否已投（使用 hasVoted）
+  const { data: hasUserVotedRaw, refetch: refetchHasVoted } = useContractRead({
+    address: CONTRACT_ADDRESS,
+    abi: ABI,
+    functionName: "hasVoted",
+    args: [pollId, address || "0x0000000000000000000000000000000000000000"],
+    query: {
+      enabled: !!address,
+    },
+  });
+  const hasUserVoted = hasUserVotedRaw as boolean | undefined;
+
+  // 4. 投票
+  const {
+    writeContract,
+    data: hash,
+    isPending: votingPending,
+  } = useContractWrite();
+  const { isLoading: txLoading, isSuccess: txSuccess } =
+    useWaitForTransactionReceipt({ hash });
+
+  const [selectedOption, setSelectedOption] = useState<number | null>(null);
+  const [error, setError] = useState("");
+
+  const poll: Poll | undefined = pollData as Poll | undefined;
+  const votes = useMemo(() => {
+    return votesData ? votesData.map((v) => Number(v)) : [];
+  }, [votesData]);
+
+  const isEnded: boolean = poll
+    ? isPast(Number(poll.deadline) * 1000) || !poll.active
+    : false;
+  const timeLeft = poll
+    ? formatDistanceToNow(Number(poll.deadline) * 1000, {
+        addSuffix: true,
+        locale: zhCN,
+      })
+    : "";
+
+  const chartData = useMemo(() => {
+    if (!poll || votes.length === 0) return [];
+    return poll.options.map((opt, i) => ({
+      name: opt,
+      value: votes[i] || 0,
+      percentage:
+        poll.totalVotes > 0
+          ? Math.round((votes[i] / Number(poll.totalVotes)) * 100)
+          : 0,
+    }));
+  }, [poll, votes]);
+
+  const COLORS = ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6"];
+
+  const handleVote = async (optionIndex: number) => {
+    if (!isConnected || !address) {
+      setError("请先连接钱包");
       return;
     }
-
-    // 初始化票数（模拟均匀分布或从存储）
-    const storedVotes = JSON.parse(localStorage.getItem(VOTES_KEY) || "{}");
-    console.log(storedVotes);
-    const pollVotes =
-      storedVotes[id] || Array(foundPoll.options.length).fill(0);
-    foundPoll.userVotes = pollVotes;
-    foundPoll.totalVotes = pollVotes.reduce((a: number, b: number) => a + b, 0);
-
-    setPoll(foundPoll);
-    setVotes(pollVotes);
-
-    // 检查用户是否已投
-    const userVotes = JSON.parse(localStorage.getItem("user_votes") || "{}");
-    setUserVote(userVotes[id] ?? null);
-  }, [id]);
-
-  // 模拟投票
-  const handleVote = async (optionIndex: number) => {
-    if (!poll || userVote !== null) return;
-    if (Date.now() > poll.deadline) {
+    if (isEnded) {
       setError("投票已结束");
       return;
     }
+    if (hasUserVoted) {
+      setError("你已投过票");
+      return;
+    }
 
-    setIsVoting(true);
     setSelectedOption(optionIndex);
+    setError("");
 
     try {
-      // 模拟延迟
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
-      // 更新本地票数
-      const newVotes = [...votes];
-      newVotes[optionIndex]++;
-      setVotes(newVotes);
-
-      // 更新 totalVotes
-      const updatedPoll = { ...poll, totalVotes: poll.totalVotes + 1 };
-      updatedPoll.userVotes = newVotes;
-      setPoll(updatedPoll);
-
-      // 保存到 localStorage
-      const polls = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-      const index = polls.findIndex((p: Poll) => p.id === id);
-      polls[index] = updatedPoll;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(polls));
-
-      // 保存选项级票数
-      const storedVotes = JSON.parse(localStorage.getItem(VOTES_KEY) || "{}");
-      storedVotes[id] = newVotes;
-      localStorage.setItem(VOTES_KEY, JSON.stringify(storedVotes));
-
-      // 记录用户投票
-      const userVotes = JSON.parse(localStorage.getItem("user_votes") || "{}");
-      userVotes[id] = optionIndex;
-      localStorage.setItem("user_votes", JSON.stringify(userVotes));
-
-      setUserVote(optionIndex);
+      writeContract({
+        address: CONTRACT_ADDRESS,
+        abi: ABI,
+        functionName: "vote",
+        args: [pollId, BigInt(optionIndex)],
+      });
     } catch (err) {
-      setError("投票失败，请重试");
-    } finally {
-      setIsVoting(false);
+      setError(`投票失败 ${err}`);
     }
   };
 
-  if (error && !poll) {
+  // 投票成功后刷新 hasVoted
+  useEffect(() => {
+    if (txSuccess) {
+      refetchHasVoted();
+      setSelectedOption(null);
+    }
+  }, [txSuccess, refetchHasVoted]);
+
+  if (loadingPoll || loadingVotes) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-red-600 text-xl">{error}</p>
-          <button
-            onClick={() => router.push("/polls")}
-            className="mt-4 text-blue-600 hover:underline"
-          >
-            ← 返回列表
-          </button>
-        </div>
+      <div className="w-full h-96 bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="animate-pulse text-gray-500">加载中...</div>
       </div>
     );
   }
 
   if (!poll) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-pulse text-gray-500">加载中...</div>
+      <div className="w-full h-96 bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-600 text-xl">投票不存在</p>
+          <button
+            onClick={() => router.push("/polls")}
+            className="mt-4 text-blue-600 hover:underline"
+          >
+            返回列表
+          </button>
+        </div>
       </div>
     );
   }
-
-  const isEnded = Date.now() > poll.deadline;
-  const timeLeft = formatDistanceToNow(poll.deadline, { addSuffix: true });
-  const chartData = poll.options.map((opt, i) => ({
-    name: opt,
-    value: votes[i] || 0,
-    percentage: poll.totalVotes
-      ? Math.round((votes[i] / poll.totalVotes) * 100)
-      : 0,
-  }));
-
-  const COLORS = ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6"];
 
   return (
     <div className="w-full bg-gray-50 dark:bg-gray-900 py-8 px-4">
@@ -176,7 +198,7 @@ export default function PollDetailPage() {
               {isEnded ? "已结束" : `剩余 ${timeLeft}`}
             </span>
             <span className="flex items-center gap-1">
-              <BarChart3 className="w-4 h-4" /> {poll.totalVotes} 票
+              <BarChart3 className="w-4 h-4" /> {poll.totalVotes.toString()} 票
             </span>
           </div>
         </div>
@@ -192,7 +214,7 @@ export default function PollDetailPage() {
         {/* 图表 */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-8">
           <h2 className="text-lg font-semibold mb-4">投票结果</h2>
-          {poll.totalVotes === 0 ? (
+          {Number(poll.totalVotes) === 0 ? (
             <p className="text-center text-gray-500 py-8">暂无投票</p>
           ) : (
             <ResponsiveContainer width="100%" height={300}>
@@ -226,22 +248,22 @@ export default function PollDetailPage() {
           <h2 className="text-lg font-semibold mb-4">
             {isEnded
               ? "投票已结束"
-              : userVote !== null
+              : hasUserVoted
               ? "你已投票"
               : "选择选项并投票"}
           </h2>
           <div className="space-y-4">
             {poll.options.map((opt, i) => {
-              const percentage = poll.totalVotes
-                ? Math.round((votes[i] / poll.totalVotes) * 100)
-                : 0;
-              const isUserVoted = userVote === i;
+              const percentage =
+                poll.totalVotes > 0
+                  ? Math.round((votes[i] / Number(poll.totalVotes)) * 100)
+                  : 0;
 
               return (
                 <div
                   key={i}
                   className={`border rounded-lg p-4 transition ${
-                    isUserVoted
+                    hasUserVoted
                       ? "border-green-500 bg-green-50 dark:bg-green-900/20"
                       : "border-gray-300 dark:border-gray-600"
                   }`}
@@ -249,7 +271,7 @@ export default function PollDetailPage() {
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-3">
                       <span className="text-lg font-medium">{opt}</span>
-                      {isUserVoted && (
+                      {hasUserVoted && (
                         <CheckCircle className="w-5 h-5 text-green-600" />
                       )}
                     </div>
@@ -258,28 +280,25 @@ export default function PollDetailPage() {
                     </span>
                   </div>
 
-                  {/* 进度条 */}
                   <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
                     <div
-                      className="bg-blue-600 h-3 rounded-full transition-all duration-500"
+                      className="bg-linear-to-r from-blue-500 to-blue-600 h-3 rounded-full transition-all duration-500"
                       style={{ width: `${percentage}%` }}
                     />
                   </div>
 
                   {/* 投票按钮 */}
-                  {!isEnded && userVote === null && (
+                  {!isEnded && !hasUserVoted && (
                     <button
                       onClick={() => handleVote(i)}
-                      disabled={isVoting && selectedOption === i}
+                      disabled={votingPending || txLoading}
                       className={`mt-3 px-4 py-2 rounded-lg font-medium transition ${
-                        isVoting && selectedOption === i
+                        votingPending || txLoading
                           ? "bg-gray-400 text-white cursor-not-allowed"
                           : "bg-blue-600 text-white hover:bg-blue-700"
                       }`}
                     >
-                      {isVoting && selectedOption === i
-                        ? "投票中..."
-                        : "投这一票"}
+                      {votingPending || txLoading ? "投票中..." : "投这一票"}
                     </button>
                   )}
                 </div>
@@ -293,9 +312,9 @@ export default function PollDetailPage() {
               投票已结束，无法再投
             </p>
           )}
-          {userVote !== null && !isEnded && (
+          {hasUserVoted && !isEnded && (
             <p className="mt-6 text-center text-green-600 font-medium">
-              你已投票给：{poll.options[userVote]}
+              你已参与投票
             </p>
           )}
           {error && <p className="mt-6 text-center text-red-600">{error}</p>}
