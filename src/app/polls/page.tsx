@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import { useContractRead, useContractReads } from "wagmi";
+import { useReadContract, useReadContracts } from "wagmi";
 import { formatDistanceToNow, isPast } from "date-fns";
 import { zhCN } from "date-fns/locale";
 import { Plus, Clock, BarChart3, Search } from "lucide-react";
@@ -57,20 +57,22 @@ export default function PollsListPage() {
   const [sortBy, setSortBy] = useState("latest");
 
   // 1. 读取所有投票
-  const { data: polls, isLoading: loadingPolls } = useContractRead({
+  const { data: polls, isLoading: loadingPolls } = useReadContract({
     address: CONTRACT_ADDRESS,
     abi: ABI,
     functionName: "getAllPolls",
+    chainId: 11155111,
   });
 
   // 2. 批量读取每个投票的票数
   const pollIds = polls ? (polls as Poll[]).map((p) => p.id) : [];
-  const { data: votesData } = useContractReads({
+  const { data: votesData } = useReadContracts({
     contracts: pollIds.map((id) => ({
       address: CONTRACT_ADDRESS,
       abi: ABI,
       functionName: "getOptionVotes",
       args: [id],
+      chainId: 11155111,
     })),
     query: {
       enabled: pollIds.length > 0,

@@ -4,8 +4,8 @@ import { useState, useMemo } from "react";
 import Link from "next/link";
 import {
   useAccount,
-  useContractRead,
-  useContractWrite,
+  useReadContract,
+  useWriteContract,
   useWaitForTransactionReceipt,
 } from "wagmi";
 import { formatDistanceToNow, isPast } from "date-fns";
@@ -33,7 +33,7 @@ export default function MyPollsPage() {
   const [error, setError] = useState("");
 
   // 1. 读取所有投票
-  const { data: polls, isLoading } = useContractRead({
+  const { data: polls, isLoading } = useReadContract({
     address: CONTRACT_ADDRESS,
     abi: ABI,
     functionName: "getAllPolls",
@@ -44,7 +44,7 @@ export default function MyPollsPage() {
     writeContract,
     data: hash,
     isPending: endingPending,
-  } = useContractWrite();
+  } = useWriteContract();
   const { isLoading: txLoading, isSuccess: txSuccess } =
     useWaitForTransactionReceipt({ hash });
 

@@ -1,12 +1,11 @@
-// app/polls/[id]/page.tsx
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   useAccount,
-  useContractRead,
-  useContractWrite,
+  useReadContract,
+  useWriteContract,
   useWaitForTransactionReceipt,
 } from "wagmi";
 import {
@@ -45,7 +44,7 @@ export default function PollDetailPage() {
   const pollId = BigInt(id as string);
 
   // 1. 读取投票详情
-  const { data: pollData, isLoading: loadingPoll } = useContractRead({
+  const { data: pollData, isLoading: loadingPoll } = useReadContract({
     address: CONTRACT_ADDRESS,
     abi: ABI,
     functionName: "getPoll",
@@ -53,7 +52,7 @@ export default function PollDetailPage() {
   });
 
   // 2. 读取选项票数
-  const { data: votesDataRaw, isLoading: loadingVotes } = useContractRead({
+  const { data: votesDataRaw, isLoading: loadingVotes } = useReadContract({
     address: CONTRACT_ADDRESS,
     abi: ABI,
     functionName: "getOptionVotes",
@@ -61,7 +60,7 @@ export default function PollDetailPage() {
   });
   const votesData = votesDataRaw as readonly bigint[] | undefined;
   // 3. 读取用户是否已投（使用 hasVoted）
-  const { data: hasUserVotedRaw, refetch: refetchHasVoted } = useContractRead({
+  const { data: hasUserVotedRaw, refetch: refetchHasVoted } = useReadContract({
     address: CONTRACT_ADDRESS,
     abi: ABI,
     functionName: "hasVoted",
@@ -77,7 +76,7 @@ export default function PollDetailPage() {
     writeContract,
     data: hash,
     isPending: votingPending,
-  } = useContractWrite();
+  } = useWriteContract();
   const { isLoading: txLoading, isSuccess: txSuccess } =
     useWaitForTransactionReceipt({ hash });
 

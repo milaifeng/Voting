@@ -1,9 +1,8 @@
-// app/rank/page.tsx
 "use client";
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import { useContractRead, useAccount } from "wagmi";
+import { useReadContract, useAccount } from "wagmi";
 import { format, startOfWeek, startOfMonth } from "date-fns";
 import { zhCN } from "date-fns/locale";
 import {
@@ -43,7 +42,7 @@ export default function RankPage() {
   const [timeFilter, setTimeFilter] = useState<"all" | "week" | "month">("all");
 
   // 1. 读取所有投票
-  const { data: polls, isLoading } = useContractRead({
+  const { data: polls, isLoading } = useReadContract({
     address: CONTRACT_ADDRESS,
     abi: ABI,
     functionName: "getAllPolls",

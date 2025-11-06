@@ -22,7 +22,6 @@ export default function HeroSection() {
         </Link>
       </div>
       <div className="mt-12">
-        {/* 简单动画图标（用 SVG 或 Lottie） */}
         <svg
           className="w-32 h-32 mx-auto animate-bounce"
           fill="none"

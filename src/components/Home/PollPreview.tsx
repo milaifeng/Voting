@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 
-// 模拟数据（实际用 useContractRead 获取）
+// 模拟数据
 const mockPolls = [
   {
     id: 1,

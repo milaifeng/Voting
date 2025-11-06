@@ -2,7 +2,7 @@
 import CountUp from "react-countup";
 
 export default function StatsOverview() {
-  // 模拟数据（实际替换为合约读取）
+  // 模拟数据
   const totalVotes = 12345;
   const activePolls = 28;
   const users = 5678;

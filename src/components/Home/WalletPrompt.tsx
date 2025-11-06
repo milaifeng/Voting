@@ -6,7 +6,7 @@ export default function WalletPrompt() {
         <p className="text-gray-600 dark:text-gray-300 mb-8">
           支持 MetaMask、WalletConnect 等，无 Gas 门槛。
         </p>
-        <div className="mt-8 grid grid-cols-3 gap-4 text-sm text-gray-500">
+        <div className="mt-8 grid grid-cols-3 gap-4 text-sm mb-6 text-gray-500">
           <div>✅ 公平透明</div>
           <div>🔒 区块链存储</div>
           <div>🚀 多链支持</div>
