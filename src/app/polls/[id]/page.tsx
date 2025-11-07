@@ -151,7 +151,7 @@ export default function PollDetailPage() {
 
   if (loadingPoll || loadingVotes) {
     return (
-      <div className="w-full h-96 bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+      <div className="w-full h-96 bg-gray-50  flex items-center justify-center">
         <div className="animate-pulse text-gray-500">加载中...</div>
       </div>
     );
@@ -159,7 +159,7 @@ export default function PollDetailPage() {
 
   if (!poll) {
     return (
-      <div className="w-full h-96 bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+      <div className="w-full h-96 bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <p className="text-red-600 text-xl">投票不存在</p>
           <button
@@ -174,7 +174,7 @@ export default function PollDetailPage() {
   }
 
   return (
-    <div className="w-full bg-gray-50 dark:bg-gray-900 py-8 px-4">
+    <div className="w-full bg-gray-50  py-8 px-4">
       <div className="max-w-4xl mx-auto">
         {/* 返回 + 标题 */}
         <div className="mb-8">
@@ -184,10 +184,8 @@ export default function PollDetailPage() {
           >
             <ArrowLeft className="w-5 h-5" /> 返回投票列表
           </button>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            {poll.title}
-          </h1>
-          <div className="flex items-center gap-4 mt-2 text-sm text-gray-600 dark:text-gray-300">
+          <h1 className="text-3xl font-bold text-gray-900 ">{poll.title}</h1>
+          <div className="flex items-center gap-4 mt-2 text-sm text-gray-600 ">
             <span className="flex items-center gap-1">
               <User className="w-4 h-4" /> {poll.creator.slice(0, 6)}...
               {poll.creator.slice(-4)}
@@ -203,15 +201,15 @@ export default function PollDetailPage() {
         </div>
 
         {/* 描述 */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-8">
+        <div className="bg-white  rounded-xl shadow-lg p-6 mb-8">
           <h2 className="text-lg font-semibold mb-2">投票描述</h2>
-          <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+          <p className="text-gray-700  whitespace-pre-wrap">
             {poll.description}
           </p>
         </div>
 
         {/* 图表 */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-8">
+        <div className="bg-white  rounded-xl shadow-lg p-6 mb-8">
           <h2 className="text-lg font-semibold mb-4">投票结果</h2>
           {Number(poll.totalVotes) === 0 ? (
             <p className="text-center text-gray-500 py-8">暂无投票</p>
@@ -243,7 +241,7 @@ export default function PollDetailPage() {
         </div>
 
         {/* 投票选项 */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
+        <div className="bg-white rounded-xl shadow-lg p-6">
           <h2 className="text-lg font-semibold mb-4">
             {isEnded
               ? "投票已结束"
@@ -263,8 +261,8 @@ export default function PollDetailPage() {
                   key={i}
                   className={`border rounded-lg p-4 transition ${
                     hasUserVoted
-                      ? "border-green-500 bg-green-50 dark:bg-green-900/20"
-                      : "border-gray-300 dark:border-gray-600"
+                      ? "border-green-500 bg-green-50"
+                      : "border-gray-300 "
                   }`}
                 >
                   <div className="flex items-center justify-between mb-2">
@@ -279,7 +277,7 @@ export default function PollDetailPage() {
                     </span>
                   </div>
 
-                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+                  <div className="w-full bg-gray-200 rounded-full h-3">
                     <div
                       className="bg-linear-to-r from-blue-500 to-blue-600 h-3 rounded-full transition-all duration-500"
                       style={{ width: `${percentage}%` }}

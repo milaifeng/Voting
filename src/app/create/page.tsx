@@ -1,5 +1,4 @@
 "use client";
-
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -127,8 +126,6 @@ export default function CreatePollPage() {
     }
     const validOptions = options.map((opt) => opt.text.trim()).filter(Boolean);
     const durationMinutes = parseInt(durationDays) * 24 * 60;
-    console.log("validOptions", validOptions);
-    console.log("durationMinutes", durationMinutes);
 
     try {
       writeContract({
@@ -137,12 +134,8 @@ export default function CreatePollPage() {
         functionName: "createPoll",
         args: [title, description, validOptions, BigInt(durationMinutes)],
       });
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        setError(err.message || "交易拒绝或失败");
-      } else {
-        setError(String(err) || "交易拒绝或失败");
-      }
+    } catch {
+      setError("交易拒绝或失败");
     }
   };
   // 计算截止时间预览
@@ -160,10 +153,8 @@ export default function CreatePollPage() {
       <div className="max-w-3xl mx-auto">
         {/* 标题 */}
         <div className="mb-8 text-center">
-          <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">
-            创建新投票
-          </h1>
-          <p className="text-gray-600 dark:text-gray-300">
+          <h1 className="text-4xl font-bold text-gray-900 mb-2">创建新投票</h1>
+          <p className="text-gray-600">
             填写信息，发布去中心化投票。数据永久存储在以太坊 Sepolia 测试网。
           </p>
           <div className="mt-4 bg-linear-to-r from-blue-500 to-purple-600 text-white rounded-lg p-4 shadow-lg">
@@ -183,11 +174,11 @@ export default function CreatePollPage() {
         {/* 表单卡片 */}
         <form
           onSubmit={handleSubmit}
-          className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8"
+          className="bg-white  rounded-2xl shadow-xl p-8"
         >
           {/* 标题输入 */}
           <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700  mb-2">
               投票标题 <span className="text-red-500">*</span>
             </label>
             <input
@@ -196,7 +187,7 @@ export default function CreatePollPage() {
               onChange={(e) => setTitle(e.target.value)}
               placeholder="例如：最佳前端框架是？"
               maxLength={100}
-              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700"
+              className="w-full px-4 py-3 border border-gray-300  rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent "
               required
             />
             <p className="text-sm text-gray-500 mt-1">{title.length}/100</p>
@@ -204,7 +195,7 @@ export default function CreatePollPage() {
 
           {/* 描述输入 */}
           <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700  mb-2">
               投票描述 <span className="text-red-500">*</span>
             </label>
             <textarea
@@ -213,7 +204,7 @@ export default function CreatePollPage() {
               placeholder="详细说明投票背景、规则等..."
               rows={5}
               maxLength={500}
-              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 resize-none"
+              className="w-full px-4 py-3 border border-gray-300  rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent  resize-none"
               required
             />
             <p className="text-sm text-gray-500 mt-1">
@@ -224,7 +215,7 @@ export default function CreatePollPage() {
           {/* 投票选项 */}
           <div className="mb-6">
             <div className="flex items-center justify-between mb-2">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label className="block text-sm font-medium text-gray-700 ">
                 投票选项 <span className="text-red-500">*</span> (至少 2 个)
               </label>
               <button
@@ -247,7 +238,7 @@ export default function CreatePollPage() {
                     onChange={(e) => updateOption(opt.id, e.target.value)}
                     placeholder={`选项 ${index + 1}`}
                     maxLength={100}
-                    className="flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700"
+                    className="flex-1 px-4 py-3 border border-gray-300  rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     required={index < 2}
                   />
                   {options.length > 2 && (
@@ -266,7 +257,7 @@ export default function CreatePollPage() {
 
           {/* 投票时长 */}
           <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-700  mb-2">
               投票时长 <span className="text-red-500">*</span>
             </label>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -278,24 +269,24 @@ export default function CreatePollPage() {
                   className={`py-3 px-4 rounded-lg border transition ${
                     durationDays === days
                       ? "bg-blue-600 text-white border-blue-600"
-                      : "bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 hover:border-blue-500"
+                      : "bg-white  border-gray-300  hover:border-blue-500"
                   }`}
                 >
                   {days} 天
                 </button>
               ))}
             </div>
-            <div className="mt-3 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+            <div className="mt-3 flex items-center gap-2 text-sm text-gray-600 ">
               <Clock className="w-4 h-4" />
               <span>截止时间预览：{previewDeadline}</span>
             </div>
           </div>
 
           {/* 钱包状态 */}
-          <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg flex items-center gap-3">
+          <div className="mb-6 p-4 bg-blue-50 rounded-lg flex items-center gap-3">
             <Users className="w-5 h-5 text-blue-600" />
             <div>
-              <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+              <p className="text-sm font-medium text-blue-900 ">
                 {isConnected
                   ? `创建者：${address?.slice(0, 6)}...${address?.slice(-4)}`
                   : "请连接钱包后创建"}
@@ -305,17 +296,17 @@ export default function CreatePollPage() {
 
           {/* 错误提示 */}
           {(error || writeError) && (
-            <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-300">
+            <div className="mb-6 p-4 bg-red-50  border border-red-200  rounded-lg text-red-700">
               {error || writeError?.message}
             </div>
           )}
           {writePending && (
-            <div className="mb-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg text-yellow-700 dark:text-yellow-300">
+            <div className="mb-6 p-4 bg-yellow-50  border border-yellow-200 rounded-lg text-yellow-700 ">
               等待钱包确认...
             </div>
           )}
           {txLoading && hash && (
-            <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-blue-700 dark:text-blue-300">
+            <div className="mb-6 p-4 bg-blue-50  border border-blue-200  rounded-lg text-blue-700 ">
               <div className="flex items-center gap-2">
                 <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent" />
                 交易打包中...
@@ -331,7 +322,7 @@ export default function CreatePollPage() {
             </div>
           )}
           {txSuccess && (
-            <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-green-700 dark:text-green-300">
+            <div className="mb-6 p-4 bg-green-50  border border-green-200  rounded-lg text-green-700 ">
               <div className="flex items-center gap-2">
                 <CheckCircle className="w-5 h-5" />
                 创建成功！2 秒后跳转详情...
@@ -346,7 +337,7 @@ export default function CreatePollPage() {
               disabled={writePending || txLoading || !isConnected}
               className={`flex-1 py-4 px-6 rounded-lg font-semibold transition ${
                 isSubmitting || !isConnected
-                  ? "bg-gray-300 dark:bg-gray-600 text-gray-500 cursor-not-allowed"
+                  ? "bg-gray-300 text-gray-500 cursor-not-allowed"
                   : "bg-blue-600 text-white hover:bg-blue-700 shadow-lg"
               }`}
             >
@@ -359,7 +350,7 @@ export default function CreatePollPage() {
             <button
               type="button"
               onClick={() => router.back()}
-              className="px-6 py-4 border border-gray-300 dark:border-gray-600 rounded-lg font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+              className="px-6 py-4 border border-gray-300  rounded-lg font-medium hover:bg-gray-50 transition"
             >
               取消
             </button>

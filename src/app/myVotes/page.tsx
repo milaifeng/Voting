@@ -81,12 +81,10 @@ export default function MyPollsPage() {
 
   if (!isConnected) {
     return (
-      <div className="w-full min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
+      <div className="w-full min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="text-center">
           <AlertCircle className="w-12 h-12 text-yellow-600 mx-auto mb-4" />
-          <p className="text-xl text-gray-600 dark:text-gray-300">
-            请连接钱包查看你的提案
-          </p>
+          <p className="text-xl text-gray-600">请连接钱包查看你的提案</p>
         </div>
       </div>
     );
@@ -94,22 +92,20 @@ export default function MyPollsPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen w-full bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+      <div className="min-h-screen w-full bg-gray-50  flex items-center justify-center">
         <div className="animate-pulse text-gray-500">加载你的提案...</div>
       </div>
     );
   }
 
   return (
-    <div className="w-full bg-gray-50 dark:bg-gray-900 py-8 px-4">
+    <div className="w-full bg-gray-50  py-8 px-4">
       <div className="max-w-6xl mx-auto">
         {/* 标题 + 创建按钮 */}
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
           <div>
-            <h1 className="text-4xl font-bold text-gray-900 dark:text-white">
-              我的提案
-            </h1>
-            <p className="text-gray-600 dark:text-gray-300 mt-2">
+            <h1 className="text-4xl font-bold text-gray-900 ">我的提案</h1>
+            <p className="text-gray-600  mt-2">
               管理你创建的投票。当前地址：
               <span className="font-mono text-sm ml-1">
                 {address?.slice(0, 6)}...{address?.slice(-4)}
@@ -126,14 +122,14 @@ export default function MyPollsPage() {
 
         {/* 错误提示 */}
         {error && (
-          <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-300">
+          <div className="mb-6 p-4 bg-red-50  border border-red-200  rounded-lg text-red-700">
             {error}
           </div>
         )}
 
         {/* 列表 */}
         {myPolls.length === 0 ? (
-          <div className="text-center text-blue-600 py-16 bg-white dark:bg-gray-800 rounded-xl shadow-lg">
+          <div className="text-center text-blue-600 py-16 bg-white  rounded-xl shadow-lg">
             <svg
               className="w-24 h-24 mx-auto mb-6 animate-bounce"
               fill="none"
@@ -147,9 +143,7 @@ export default function MyPollsPage() {
                 d="M9 5l7 7-7 7"
               />
             </svg>
-            <p className="text-xl text-gray-500 dark:text-gray-400 mb-4">
-              你还没有创建任何提案
-            </p>
+            <p className="text-xl text-gray-500  mb-4">你还没有创建任何提案</p>
             <Link
               href="/create"
               className="text-blue-600 hover:underline font-medium"
@@ -172,29 +166,29 @@ export default function MyPollsPage() {
               return (
                 <div
                   key={poll.id.toString()}
-                  className="bg-white dark:bg-gray-800 rounded-xl shadow-lg hover:shadow-2xl transition p-6"
+                  className="bg-white  rounded-xl shadow-lg hover:shadow-2xl transition p-6"
                 >
                   <div className="flex items-start justify-between mb-4">
                     <h3 className="text-xl font-semibold line-clamp-2 flex-1 mr-2">
                       {poll.title}
                     </h3>
                     {isEnded ? (
-                      <span className="px-3 py-1 bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300 rounded-full text-xs font-medium">
+                      <span className="px-3 py-1 bg-red-100 text-red-700   rounded-full text-xs font-medium">
                         已结束
                       </span>
                     ) : (
-                      <span className="px-3 py-1 bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300 rounded-full text-xs font-medium">
+                      <span className="px-3 py-1 bg-green-100 text-green-700  rounded-full text-xs font-medium">
                         进行中
                       </span>
                     )}
                   </div>
 
-                  <p className="text-sm text-gray-600 dark:text-gray-300 mb-4 line-clamp-3">
+                  <p className="text-sm text-gray-600  mb-4 line-clamp-3">
                     {poll.description}
                   </p>
 
                   {/* 统计 */}
-                  <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400 mb-4">
+                  <div className="flex items-center gap-4 text-sm text-gray-500  mb-4">
                     <span className="flex items-center gap-1">
                       <BarChart3 className="w-4 h-4" />
                       {poll.totalVotes.toString()} 票

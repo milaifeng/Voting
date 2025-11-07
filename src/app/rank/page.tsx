@@ -72,8 +72,7 @@ export default function RankPage() {
     filteredPolls.forEach((poll) => {
       const pollId = poll.id;
 
-      // 模拟遍历所有用户（实际项目可用后端或子图）
-      // 这里我们用 poll.creator 作为活跃用户（简化）
+      // 遍历所有用户
       const creator = poll.creator.toLowerCase();
       if (!userMap.has(creator)) {
         userMap.set(creator, { address: creator, votes: 0, polls: 0 });
@@ -111,43 +110,39 @@ export default function RankPage() {
     if (index === 1) return <Medal className="w-8 h-8 text-gray-400" />;
     if (index === 2) return <Award className="w-8 h-8 text-orange-600" />;
     return (
-      <span className="text-2xl font-bold text-gray-600 dark:text-gray-400">
-        #{index + 1}
-      </span>
+      <span className="text-2xl font-bold text-gray-600 ">#{index + 1}</span>
     );
   };
 
   if (isLoading) {
     return (
-      <div className="min-h-screen w-full bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+      <div className="min-h-screen w-full bg-gray-50  flex items-center justify-center">
         <div className="animate-pulse text-gray-500">加载排行榜...</div>
       </div>
     );
   }
 
   return (
-    <div className="w-full bg-gray-50 dark:bg-gray-900 py-8 px-4">
+    <div className="w-full bg-gray-50  py-8 px-4">
       <div className="max-w-4xl mx-auto">
         {/* 标题 */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">
-            社区排行榜
-          </h1>
-          <p className="text-gray-600 dark:text-gray-300">
+          <h1 className="text-4xl font-bold text-gray-900  mb-2">社区排行榜</h1>
+          <p className="text-gray-600 ">
             实时链上数据，展示最活跃用户与热门投票
           </p>
         </div>
 
         {/* Tab + 过滤 */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-4 mb-8">
+        <div className="bg-white  rounded-xl shadow-lg p-4 mb-8">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+            <div className="flex bg-gray-100 rounded-lg p-1">
               <button
                 onClick={() => setActiveTab("users")}
                 className={`px-6 py-2 rounded-md font-medium transition flex items-center gap-2 ${
                   activeTab === "users"
-                    ? "bg-white dark:bg-gray-600 text-blue-600 shadow"
-                    : "text-gray-600 dark:text-gray-300"
+                    ? "bg-white  text-blue-600 shadow"
+                    : "text-gray-600 "
                 }`}
               >
                 <Users className="w-5 h-5" />
@@ -157,8 +152,8 @@ export default function RankPage() {
                 onClick={() => setActiveTab("polls")}
                 className={`px-6 py-2 rounded-md font-medium transition flex items-center gap-2 ${
                   activeTab === "polls"
-                    ? "bg-white dark:bg-gray-600 text-blue-600 shadow"
-                    : "text-gray-600 dark:text-gray-300"
+                    ? "bg-white  text-blue-600 shadow"
+                    : "text-gray-600"
                 }`}
               >
                 <TrendingUp className="w-5 h-5" />
@@ -171,7 +166,7 @@ export default function RankPage() {
               onChange={(e) =>
                 setTimeFilter(e.target.value as "all" | "week" | "month")
               }
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700"
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
             >
               <option value="all">所有时间</option>
               <option value="week">本周</option>
@@ -189,15 +184,15 @@ export default function RankPage() {
               userRanks.map((user, i) => (
                 <div
                   key={user.address}
-                  className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 flex items-center justify-between hover:shadow-xl transition"
+                  className="bg-white  rounded-xl shadow-lg p-6 flex items-center justify-between hover:shadow-xl transition"
                 >
                   <div className="flex items-center gap-6">
                     <div className="text-center">{getMedal(i)}</div>
                     <div>
-                      <p className="text-xl font-semibold text-gray-900 dark:text-white font-mono">
+                      <p className="text-xl font-semibold text-gray-900  font-mono">
                         {user.address.slice(0, 8)}...{user.address.slice(-6)}
                       </p>
-                      <p className="text-sm text-gray-600 dark:text-gray-300">
+                      <p className="text-sm text-gray-600">
                         创建 {user.polls} 个投票
                       </p>
                     </div>
@@ -223,7 +218,7 @@ export default function RankPage() {
                 <Link
                   key={poll.id.toString()}
                   href={`/polls/${poll.id.toString()}`}
-                  className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 hover:shadow-xl transition transform hover:-translate-y-1"
+                  className="bg-white  rounded-xl shadow-lg p-6 hover:shadow-xl transition transform hover:-translate-y-1"
                 >
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center gap-4">
@@ -233,7 +228,7 @@ export default function RankPage() {
                       </h3>
                     </div>
                   </div>
-                  <p className="text-sm text-gray-600 dark:text-gray-300 mb-4 line-clamp-2">
+                  <p className="text-sm text-gray-600  mb-4 line-clamp-2">
                     创建者: {poll.creator.slice(0, 6)}...
                     {poll.creator.slice(-4)}
                   </p>
