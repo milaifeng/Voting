@@ -7,6 +7,37 @@
 
 ---
 
+## 网页预览
+**浏览器端**      
+**首页**      
+![网页端首页](https://i.imgur.com/TMi8tso.png)
+
+---
+
+**创建投票页**      
+![创建投票页](https://imgur.com/slLIKYE.png)
+
+---
+
+**查看投票页**   
+![查看投票页](https://imgur.com/hWed6JZ.png)
+
+---
+
+**投票详情页**
+![投票详情页](https://imgur.com/FPRnDBC.png)
+
+---
+
+**用户投票排行页**  
+![投票详情页](https://imgur.com/tLn9bhP.png)
+
+---
+
+**手机端（部分）**    
+![手机端首页](https://i.imgur.com/EyGumPT.png)   &emsp;&emsp;&emsp;&emsp;  ![手机端创建页](https://imgur.com/FuNBm7O.png) 
+
+
 ## 功能介绍
 | 功能 | 说明 |
 |:------:|:------:|
